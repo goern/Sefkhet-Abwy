@@ -286,6 +286,6 @@ def random_positive_emoji2() -> str:
     return random.choice(POSITIVE_GOOGLE_CHAT_EMOJIS)
 
 
-def extract_url_from_text(text: str) -> typing.Union[typing.List[str], str, None]:
+def extract_url_from_text(text: str) -> typing.List[str]:
     """Extract the URL from a piece of text."""
-    return URL_REGEX.search(text)
+    return re.findall("(?P<url>https?://[^\s]+)", text)

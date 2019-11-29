@@ -23,6 +23,7 @@ import os
 import asyncio
 import pathlib
 import logging
+import typing
 
 
 from aiohttp import web
@@ -31,10 +32,10 @@ from aiohttp import web
 from thoth.common import init_logging
 
 
-from aicoe.sesheta.utils import notify_channel, hangouts_userid, realname
+from aicoe.sesheta.utils import notify_channel, hangouts_userid, realname, extract_url_from_text
 
 
-__version__ = "0.1.0-dev"
+__version__ = "0.2.0-dev"
 
 
 init_logging(logging_env_var_start="SEFKHET__ABWY_LOG_")
@@ -48,24 +49,36 @@ routes = web.RouteTableDef()
 app = web.Application()
 
 
-async def get_intent(text: str,) -> (str, float, dict):
+async def get_intent(text: str) -> typing.Tuple[str, str, str]:
     """Get the Intent of the provided text, and assign it a score."""
-    if text.startswith("assign"):
-        return ("assign", 1.0, {})
+    subject = issue_url = None
 
-    return (None, 0.0, {})
+    if text.startswith("assign"):
+        for url in extract_url_from_text(text):
+            if "issue" in url:
+                issue_url = url
+
+                subject = text.split()[-1]
+        return (subject, "assign", issue_url)
+    elif text.startswith("deploy"):
+        pass
+
+    return (None, None, None)
 
 
 async def process_user_text(thread_id: str, text: str) -> str:
     """Process the Text, get the intent, and schedule actions accordingly."""
-    _LOGGER.info(f"message on thread {thread_id}: {text}")
+    (s, intent, o) = await get_intent(text)
+
+    _LOGGER.info(f"message on thread '{thread_id}': {text}: {s} {intent} {o}")
+
     return text
 
 
 @routes.get("/")
 async def hello(request):
     """Print just a Hello World."""
-    return web.Response(text="Hello, world")
+    return web.Response(text="I'm just a bot, this service is not targeted at humans!")
 
 
 @routes.post("/api/v1alpha1")
@@ -76,10 +89,11 @@ async def hangouts_handler(request):
     if event["type"] == "ADDED_TO_SPACE" and event["space"]["type"] == "ROOM":
         text = 'Thanks for adding me to "%s"!' % event["space"]["displayName"]
     elif event["type"] == "MESSAGE":
-        intend = await process_user_text(event["message"]["thread"]["name"], event["message"]["text"])
-        text = "You said: `%s`" % intend
+        response_text = await process_user_text(event["message"]["thread"]["name"], event["message"]["text"])
+        text = "thanks..."
     else:
         return
+
     return web.json_response({"text": text})
 
 
